@@ -11,9 +11,11 @@ import android.media.AudioManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings as SystemSettings
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -53,9 +55,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private sealed interface Editing {
-    data object New : Editing
-    data class Existing(val alarm: Alarm) : Editing
+private sealed interface Route {
+    data object Main : Route
+    data object Settings : Route
+    /** Editing [alarm], or a new alarm when it is null. */
+    data class Edit(val alarm: Alarm?) : Route
 }
 
 private const val PREVIEW_MILLIS = 6_000L
@@ -69,7 +73,7 @@ private fun MainRoute(repository: AlarmRepository) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var is24Hour by remember { mutableStateOf(DateFormat.is24HourFormat(context)) }
     var readiness by remember { mutableStateOf(Readiness.check(context)) }
-    var editing by remember { mutableStateOf<Editing?>(null) }
+    var route by remember { mutableStateOf<Route>(Route.Main) }
     var preview by remember { mutableStateOf<EarphonePlayer?>(null) }
     val earphone = rememberEarphone(context)
 
@@ -115,85 +119,71 @@ private fun MainRoute(repository: AlarmRepository) {
         player.start()
     }
 
-    val status = buildList {
-        add(StatusLine("이어폰", earphone ?: "연결 안 됨", ok = earphone != null))
-        for (item in readiness) {
-            add(
-                StatusLine(
-                    label = statusLabel(item.item),
-                    value = statusValue(item.item, item.ok),
-                    ok = item.ok,
-                    onFix = { openSettings(context, Readiness.settingsIntent(context, item.item)) },
-                ),
+    val problems = readiness.count { !it.ok }
+
+    when (val current = route) {
+        Route.Main -> MainScreen(
+            alarms = data.alarms.sortedBy { it.hour * 60 + it.minute },
+            nowMillis = nowMillis,
+            nextAlarmAt = AlarmTime.nextOf(data.alarms, nowMillis),
+            is24Hour = is24Hour,
+            earphone = earphone,
+            problems = problems,
+            onToggle = { alarm, enabled -> repository.setEnabled(alarm.id, enabled) },
+            onEdit = { route = Route.Edit(it) },
+            onAdd = { route = Route.Edit(null) },
+            onOpenSettings = { route = Route.Settings },
+        )
+        Route.Settings -> {
+            val checks = buildList {
+                add(
+                    CheckLine("이어폰", earphone ?: "연결 안 됨", ok = earphone != null) {
+                        openSettings(context, Intent(SystemSettings.ACTION_BLUETOOTH_SETTINGS))
+                    },
+                )
+                for (status in readiness) {
+                    add(
+                        CheckLine(CheckText.label(status.item), CheckText.value(status.item, status.ok), status.ok) {
+                            openSettings(context, Readiness.settingsIntent(context, status.item))
+                        },
+                    )
+                }
+            }
+            SettingsScreen(
+                settings = data.settings,
+                checks = checks,
+                previewing = preview != null,
+                onSettingsChange = { settings -> repository.updateSettings { settings } },
+                onPreview = ::startPreview,
+                onTestAlarm = {
+                    repository.scheduleTest(System.currentTimeMillis() + TEST_DELAY_MILLIS)
+                    Toast.makeText(context, "10초 뒤에 울려요. 화면을 끄고 기다려 보세요.", Toast.LENGTH_LONG).show()
+                },
+                onBack = { route = Route.Main },
+            )
+        }
+        is Route.Edit -> {
+            val alarm = current.alarm
+            BackHandler { route = Route.Main }
+            AlarmEditorScreen(
+                initialHour = alarm?.hour ?: 6,
+                initialMinute = alarm?.minute ?: 0,
+                initialDays = alarm?.days ?: emptySet(),
+                is24Hour = is24Hour,
+                isNew = alarm == null,
+                nowMillis = nowMillis,
+                onSave = { hour, minute, days ->
+                    if (alarm == null) repository.addAlarm(hour, minute, days) else repository.saveAlarm(alarm.id, hour, minute, days)
+                    route = Route.Main
+                },
+                onDelete = {
+                    if (alarm != null) repository.deleteAlarm(alarm.id)
+                    route = Route.Main
+                },
+                onCancel = { route = Route.Main },
             )
         }
     }
-
-    MainScreen(
-        alarms = data.alarms.sortedBy { it.hour * 60 + it.minute },
-        settings = data.settings,
-        nowMillis = nowMillis,
-        nextAlarmAt = AlarmTime.nextOf(data.alarms, nowMillis),
-        is24Hour = is24Hour,
-        status = status,
-        previewing = preview != null,
-        onToggle = { alarm, enabled -> repository.setEnabled(alarm.id, enabled) },
-        onEdit = { editing = Editing.Existing(it) },
-        onAdd = { editing = Editing.New },
-        onSettingsChange = { settings -> repository.updateSettings { settings } },
-        onPreview = ::startPreview,
-        onTestAlarm = {
-            repository.scheduleTest(System.currentTimeMillis() + TEST_DELAY_MILLIS)
-            Toast.makeText(context, "10초 뒤에 울려요. 화면을 끄고 기다려 보세요.", Toast.LENGTH_LONG).show()
-        },
-    )
-
-    when (val target = editing) {
-        null -> Unit
-        Editing.New -> AlarmEditorDialog(
-            initialHour = 6,
-            initialMinute = 0,
-            initialDays = emptySet(),
-            is24Hour = is24Hour,
-            isNew = true,
-            onSave = { hour, minute, days ->
-                repository.addAlarm(hour, minute, days)
-                editing = null
-            },
-            onDelete = {},
-            onDismiss = { editing = null },
-        )
-        is Editing.Existing -> AlarmEditorDialog(
-            initialHour = target.alarm.hour,
-            initialMinute = target.alarm.minute,
-            initialDays = target.alarm.days,
-            is24Hour = is24Hour,
-            isNew = false,
-            onSave = { hour, minute, days ->
-                repository.saveAlarm(target.alarm.id, hour, minute, days)
-                editing = null
-            },
-            onDelete = {
-                repository.deleteAlarm(target.alarm.id)
-                editing = null
-            },
-            onDismiss = { editing = null },
-        )
-    }
-}
-
-private fun statusLabel(item: Readiness.Item): String = when (item) {
-    Readiness.Item.NOTIFICATIONS -> "알림"
-    Readiness.Item.FULL_SCREEN -> "잠금 화면에 표시"
-    Readiness.Item.EXACT_ALARM -> "정확한 시각에 울리기"
-    Readiness.Item.BATTERY -> "배터리 사용"
-    Readiness.Item.DND_MEDIA -> "방해 금지 중 미디어 소리"
-}
-
-private fun statusValue(item: Readiness.Item, ok: Boolean): String = when (item) {
-    Readiness.Item.BATTERY -> if (ok) "제한 없음" else "제한됨"
-    Readiness.Item.DND_MEDIA -> if (ok) "허용" else "차단됨"
-    else -> if (ok) "허용" else "꺼짐"
 }
 
 private fun openSettings(context: Context, intent: Intent) {

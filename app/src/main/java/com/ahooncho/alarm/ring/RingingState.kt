@@ -14,6 +14,14 @@ object RingingState {
         val earphone: String? = null,
         /** False until it is known whether an earphone can play. */
         val outputKnown: Boolean = false,
+        /** Repeat summary of the ringing alarm, e.g. "평일". */
+        val repeatText: String = "",
+        val snoozeMinutes: Int = 5,
+        val holdToDismissMillis: Int = 1_200,
+        val volumePercent: Int = 40,
+        val rampMillis: Long = 30_000,
+        /** elapsedRealtime when sound started on the current earphone; drives the volume bar. */
+        val soundingSince: Long? = null,
     )
 
     private val state = MutableStateFlow<Ringing?>(null)

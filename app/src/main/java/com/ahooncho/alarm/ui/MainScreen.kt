@@ -2,7 +2,6 @@ package com.ahooncho.alarm.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,258 +11,187 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ahooncho.alarm.data.Alarm
-import com.ahooncho.alarm.data.Settings
+import com.ahooncho.alarm.schedule.AlarmTime
+import com.ahooncho.alarm.ui.components.BaselinePair
+import com.ahooncho.alarm.ui.components.BaselineStack
+import com.ahooncho.alarm.ui.components.BottomBar
+import com.ahooncho.alarm.ui.components.DisplayNumerals
+import com.ahooncho.alarm.ui.components.EdgeText
+import com.ahooncho.alarm.ui.components.LineIcon
+import com.ahooncho.alarm.ui.components.LineIconView
+import com.ahooncho.alarm.ui.components.Numerals
+import com.ahooncho.alarm.ui.components.Rule
+import com.ahooncho.alarm.ui.components.SquareSwitch
+import com.ahooncho.alarm.ui.theme.Theme
 import com.ahooncho.alarm.ui.theme.Type
 import com.ahooncho.alarm.util.TimeText
 import java.time.Instant
 import java.time.ZoneId
 
-/** One line of the status section. [onFix] opens whatever resolves a problem. */
-data class StatusLine(
-    val label: String,
-    val value: String,
-    val ok: Boolean,
-    val onFix: (() -> Unit)? = null,
-)
+/** App bar: 48 dp, both labels on a baseline 30 dp below its top. */
+@Composable
+fun TopBar(start: @Composable () -> Unit, end: @Composable () -> Unit = {}) {
+    BaselinePair(baseline = 30.dp, height = 48.dp, modifier = Modifier.fillMaxWidth(), start = start, end = end)
+}
 
 @Composable
 fun MainScreen(
     alarms: List<Alarm>,
-    settings: Settings,
     nowMillis: Long,
     nextAlarmAt: Long?,
     is24Hour: Boolean,
-    status: List<StatusLine>,
-    previewing: Boolean,
+    earphone: String?,
+    problems: Int,
     onToggle: (Alarm, Boolean) -> Unit,
     onEdit: (Alarm) -> Unit,
     onAdd: () -> Unit,
-    onSettingsChange: (Settings) -> Unit,
-    onPreview: () -> Unit,
-    onTestAlarm: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding(),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 32.dp),
-    ) {
-        item { Header(nextAlarmAt, nowMillis, is24Hour) }
-        item { Rule() }
-        items(alarms, key = { it.id }) { alarm ->
-            AlarmRow(
-                alarm = alarm,
-                nowMillis = nowMillis,
-                is24Hour = is24Hour,
-                onToggle = { onToggle(alarm, it) },
-                onClick = { onEdit(alarm) },
-            )
-            Rule()
-        }
-        item { ActionLine("알람 추가", trailing = "+", onClick = onAdd) }
-
-        item { Section("상태") }
-        items(status) { StatusRow(it) }
-
-        item { Section("설정") }
-        item {
-            Stepper(
-                label = "이어폰 볼륨",
-                value = "${settings.volumePercent}%",
-                onMinus = { onSettingsChange(settings.copy(volumePercent = step(settings.volumePercent, -5, 5..100))) },
-                onPlus = { onSettingsChange(settings.copy(volumePercent = step(settings.volumePercent, 5, 5..100))) },
-            )
-        }
-        item {
-            Stepper(
-                label = "점점 크게",
-                value = if (settings.rampSeconds == 0) "바로" else "${settings.rampSeconds}초",
-                onMinus = { onSettingsChange(settings.copy(rampSeconds = step(settings.rampSeconds, -5, 0..60))) },
-                onPlus = { onSettingsChange(settings.copy(rampSeconds = step(settings.rampSeconds, 5, 0..60))) },
-            )
-        }
-        item {
-            Stepper(
-                label = "스누즈",
-                value = "${settings.snoozeMinutes}분",
-                onMinus = { onSettingsChange(settings.copy(snoozeMinutes = step(settings.snoozeMinutes, -1, 1..30))) },
-                onPlus = { onSettingsChange(settings.copy(snoozeMinutes = step(settings.snoozeMinutes, 1, 1..30))) },
-            )
-        }
-        item {
-            Stepper(
-                label = "자동 종료",
-                value = "${settings.autoStopMinutes}분",
-                onMinus = { onSettingsChange(settings.copy(autoStopMinutes = step(settings.autoStopMinutes, -5, 5..60))) },
-                onPlus = { onSettingsChange(settings.copy(autoStopMinutes = step(settings.autoStopMinutes, 5, 5..60))) },
-            )
-        }
-
-        item { Section("테스트") }
-        item {
-            ActionLine(
-                text = if (previewing) "재생 중" else "이어폰으로 미리 듣기",
-                onClick = onPreview,
-                enabled = !previewing,
-            )
-        }
-        item { ActionLine("10초 뒤 테스트 알람", onClick = onTestAlarm) }
-    }
-}
-
-private fun step(value: Int, delta: Int, range: IntRange): Int = (value + delta).coerceIn(range)
-
-@Composable
-private fun Header(nextAlarmAt: Long?, nowMillis: Long, is24Hour: Boolean) {
-    val next = if (nextAlarmAt == null) {
-        "켜진 알람 없음"
-    } else {
-        val time = Instant.ofEpochMilli(nextAlarmAt).atZone(ZoneId.systemDefault())
-        val day = TimeText.relativeDay(nextAlarmAt, nowMillis)
-        val clock = TimeText.clockLine(time.hour, time.minute, is24Hour)
-        "$day $clock · ${TimeText.until(nowMillis, nextAlarmAt)}"
-    }
-    Column(Modifier.padding(bottom = 24.dp)) {
-        Text("알람", style = Type.title, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(8.dp))
-        Text(next, style = Type.caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun AlarmRow(
-    alarm: Alarm,
-    nowMillis: Long,
-    is24Hour: Boolean,
-    onToggle: (Boolean) -> Unit,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val tint = if (alarm.enabled) colors.onBackground else colors.onSurfaceVariant
-    val (clock, marker) = TimeText.clock(alarm.hour, alarm.minute, is24Hour)
-    val snooze = alarm.snoozeUntil?.takeIf { it > nowMillis }?.let {
-        val time = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
-        " · 스누즈 ${TimeText.clockLine(time.hour, time.minute, is24Hour)}"
-    }.orEmpty()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Row {
-                if (marker != null) {
-                    Text("$marker ", style = Type.body, color = tint, modifier = Modifier.alignByBaseline())
+    val p = Theme.palette
+    Column(Modifier.fillMaxSize().background(p.bg)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().statusBarsPadding(),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp),
+        ) {
+            item {
+                Column {
+                    TopBar(
+                        start = { EdgeText("알람", Type.titleBold, p.fg) },
+                        end = {
+                            EdgeText("설정", Type.title, p.fg, Modifier.clickable(onClick = onOpenSettings).padding(vertical = 12.dp), end = true)
+                        },
+                    )
+                    Rule(4.dp)
                 }
-                Text(clock, style = Type.display, color = tint, modifier = Modifier.alignByBaseline())
             }
-            Text(TimeText.days(alarm.days) + snooze, style = Type.caption, color = colors.onSurfaceVariant)
+            item { Hero(nextAlarmAt, is24Hour) }
+            item { Meta(nextAlarmAt, nowMillis, is24Hour, earphone, problems, onOpenSettings) }
+            item {
+                Column {
+                    BaselineStack(first = 27.dp, bottom = 16.dp, modifier = Modifier.fillMaxWidth()) {
+                        EdgeText("알람 ${alarms.size}개", Type.bodyBold, p.fg)
+                    }
+                    Rule(4.dp)
+                }
+            }
+            if (alarms.isEmpty()) {
+                item {
+                    BaselineStack(first = 32.dp, steps = listOf(24.dp), modifier = Modifier.fillMaxWidth()) {
+                        EdgeText("알람이 없어요", Type.titleBold, p.fg)
+                        EdgeText("‘알람 추가’를 눌러 만들어 보세요.", Type.body, p.muted)
+                    }
+                }
+            } else {
+                items(alarms, key = { it.id }) { alarm ->
+                    AlarmRow(alarm, nowMillis, is24Hour, onToggle = { onToggle(alarm, it) }, onClick = { onEdit(alarm) })
+                }
+            }
         }
-        Switch(checked = alarm.enabled, onCheckedChange = onToggle)
+        BottomBar("알람 추가", onClick = onAdd) {
+            LineIconView(LineIcon.Plus, p.onBlock, 20.dp)
+        }
     }
 }
 
 @Composable
-private fun Section(title: String) {
-    Text(
-        title,
-        style = Type.label,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 48.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun Rule() {
-    HorizontalDivider(thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
-}
-
-@Composable
-private fun StatusRow(line: StatusLine) {
-    val colors = MaterialTheme.colorScheme
-    val fix = line.onFix.takeUnless { line.ok }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (fix != null) Modifier.clickable(onClick = fix) else Modifier)
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(line.label, style = Type.body, color = colors.onBackground, modifier = Modifier.weight(1f))
-        Text(
-            text = if (fix != null) "${line.value}  →" else line.value,
-            style = Type.body,
-            fontWeight = if (line.ok) FontWeight.Normal else FontWeight.SemiBold,
-            color = if (line.ok) colors.onSurfaceVariant else colors.onBackground,
-        )
+private fun Hero(nextAlarmAt: Long?, is24Hour: Boolean) {
+    val p = Theme.palette
+    // Rule bottom to the figures' cap line is 16 dp; the drawing box already includes the overshoot.
+    val gap = 16.dp - (115 * Numerals.OVERSHOOT).dp
+    Column {
+        Spacer(Modifier.height(gap))
+        if (nextAlarmAt == null) {
+            DisplayNumerals(listOf("00:00"), p.subtle, "다음 알람 없음", Modifier.fillMaxWidth(), outline = 2.dp)
+        } else {
+            val time = Instant.ofEpochMilli(nextAlarmAt).atZone(ZoneId.systemDefault())
+            val (clock, _) = TimeText.clock(time.hour, time.minute, is24Hour)
+            DisplayNumerals(
+                listOf(clock), p.fg, "다음 알람 ${TimeText.clockLine(time.hour, time.minute, is24Hour)}",
+                Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(gap))
+        Rule(1.dp)
     }
 }
 
 @Composable
-private fun Stepper(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = Type.body, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
-        StepButton("−", onMinus)
-        Text(
-            value,
-            style = Type.body,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.widthIn(min = 64.dp),
-        )
-        StepButton("+", onPlus)
+private fun Meta(nextAlarmAt: Long?, nowMillis: Long, is24Hour: Boolean, earphone: String?, problems: Int, onOpenSettings: () -> Unit) {
+    val p = Theme.palette
+    Column {
+        Row(Modifier.fillMaxWidth()) {
+            BaselineStack(first = 23.dp, steps = listOf(24.dp, 20.dp), bottom = 16.dp, modifier = Modifier.weight(1f)) {
+                EdgeText("다음 알람", Type.caption, p.muted)
+                if (nextAlarmAt == null) {
+                    EdgeText("없음", Type.titleBold, p.fg)
+                } else {
+                    val time = Instant.ofEpochMilli(nextAlarmAt).atZone(ZoneId.systemDefault())
+                    val marker = TimeText.clock(time.hour, time.minute, is24Hour).second
+                    EdgeText(TimeText.dayLine(nextAlarmAt, nowMillis) + (marker?.let { " $it" } ?: ""), Type.titleBold, p.fg)
+                    EdgeText(TimeText.until(nowMillis, nextAlarmAt) + "에 울려요", Type.caption, p.muted)
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            BaselineStack(first = 23.dp, steps = listOf(24.dp, 20.dp), bottom = 16.dp, modifier = Modifier.weight(1f)) {
+                EdgeText("이어폰", Type.caption, p.muted)
+                EdgeText(earphone ?: "연결 안 됨", Type.titleBold, p.fg)
+                when {
+                    problems > 0 -> EdgeText("설정 ${problems}개 확인 필요", Type.captionBold, p.fg, Modifier.clickable(onClick = onOpenSettings))
+                    earphone == null -> EdgeText("진동만 울려요", Type.caption, p.muted)
+                    else -> EdgeText("연결됨", Type.caption, p.muted)
+                }
+            }
+        }
+        Rule(1.dp)
     }
 }
 
+/** One alarm, 72 dp: figures with their cap line at 24 and baseline at 48, repeat column on grid column 3. */
 @Composable
-private fun StepButton(symbol: String, onClick: () -> Unit) {
+private fun AlarmRow(alarm: Alarm, nowMillis: Long, is24Hour: Boolean, onToggle: (Boolean) -> Unit, onClick: () -> Unit) {
+    val p = Theme.palette
+    val on = alarm.enabled
+    val (clock, marker) = TimeText.clock(alarm.hour, alarm.minute, is24Hour)
+    val next = when {
+        !on -> "꺼짐"
+        alarm.snoozeUntil != null && alarm.snoozeUntil > nowMillis -> {
+            val t = Instant.ofEpochMilli(alarm.snoozeUntil).atZone(ZoneId.systemDefault())
+            "${TimeText.clockLine(t.hour, t.minute, is24Hour)}에 다시 알림"
+        }
+        else -> AlarmTime.nextTriggerMillis(alarm, Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()))
+            ?.let { TimeText.until(nowMillis, it) }.orEmpty()
+    }
+    val repeat = TimeText.days(alarm.days) + (marker?.let { " $it" } ?: "")
     Box(
-        modifier = Modifier
-            .size(44.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(symbol, style = Type.title, color = MaterialTheme.colorScheme.onBackground)
-    }
-}
-
-@Composable
-private fun ActionLine(text: String, onClick: () -> Unit, trailing: String = "→", enabled: Boolean = true) {
-    val color = if (enabled) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 18.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .height(72.dp)
+            .clickable(onClickLabel = "편집", onClick = onClick),
     ) {
-        Text(text, style = Type.body, color = color)
-        Text(trailing, style = Type.body, color = color)
+        DisplayNumerals(
+            lines = listOf(clock),
+            color = if (on) p.fg else p.subtle,
+            contentDescription = TimeText.clockLine(alarm.hour, alarm.minute, is24Hour),
+            modifier = Modifier.padding(top = 24.dp - (34 * Numerals.OVERSHOOT).dp),
+            fontSize = 34.sp,
+            weight = FontWeight.SemiBold,
+        )
+        BaselineStack(first = 33.dp, steps = listOf(17.dp), modifier = Modifier.padding(start = 164.dp)) {
+            EdgeText(repeat, Type.bodyBold, if (on) p.fg else p.muted)
+            EdgeText(next, Type.caption, p.muted)
+        }
+        SquareSwitch(on, onToggle, Modifier.align(Alignment.CenterEnd))
+        Rule(1.dp, p.line, Modifier.align(Alignment.BottomStart))
     }
 }

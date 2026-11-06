@@ -11,6 +11,7 @@
 - 이어폰이 빠지거나 끊기거나 출력 경로가 바뀌는 신호가 오면 바로 음소거하고 정지해요.
 - 이어폰이 없으면 폰 **진동만** 해요. 폰 스피커로는 절대 소리를 내지 않아요.
 - AirPods 줄기 누르기는 무시해요. 잠결에 눌러서 알람이 꺼지는 일을 막아요.
+- 울리는 화면의 해제 버튼은 길게 눌러야 해요(기본 1.2초, 설정에서 0초로 바꾸면 한 번 누르기).
 - 알람은 `AlarmManager.setAlarmClock`으로 예약해요. 새벽 자동 재시작 뒤 잠금 해제 전 상태에서도 다시 등록되고 울려요.
 
 자세한 요구사항과 결정 사항은 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)에 있어요.
@@ -31,7 +32,7 @@
 | `schedule` | 다음 울릴 시각 계산, `AlarmManager` 예약, 재부팅 후 재등록 |
 | `ring` | 울리는 동안 동작하는 서비스, 이어폰 전용 재생(`EarphonePlayer`), 진동, 알림 |
 | `system` | 알림·잠금 화면·배터리·방해 금지 설정 점검 |
-| `ui` | 흑백 미니멀 화면 (Jetpack Compose) |
+| `ui` | 화면 (Jetpack Compose). 디자인 규칙은 [docs/DESIGN.md](docs/DESIGN.md) |
 
 ## 개발
 
@@ -39,3 +40,7 @@
 ./gradlew testDebugUnitTest   # 단위 테스트
 ./gradlew assembleRelease     # APK
 ```
+
+## 글꼴
+
+`app/src/main/res/font`에 Geist(숫자·라틴)와 Gothic A1(한글)을 넣었어요. 둘 다 SIL Open Font License 1.1이고, 라이선스 전문은 `licenses/`에 있어요.

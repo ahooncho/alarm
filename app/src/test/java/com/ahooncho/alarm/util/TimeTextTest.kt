@@ -19,7 +19,7 @@ class TimeTextTest {
     fun daySummaries() {
         assertEquals("한 번", TimeText.days(emptySet()))
         assertEquals("매일", TimeText.days((1..7).toSet()))
-        assertEquals("주중", TimeText.days(setOf(1, 2, 3, 4, 5)))
+        assertEquals("평일", TimeText.days(setOf(1, 2, 3, 4, 5)))
         assertEquals("주말", TimeText.days(setOf(6, 7)))
         assertEquals("월 수 금", TimeText.days(setOf(5, 1, 3)))
     }
@@ -42,5 +42,24 @@ class TimeTextTest {
         assertEquals("10월 3일 (토)", TimeText.relativeDay(
             ZonedDateTime.of(2026, 10, 3, 6, 0, 0, 0, seoul).toInstant().toEpochMilli(), now, seoul,
         ))
+    }
+
+    @Test
+    fun dayLinesAndDates() {
+        val seoul = ZoneId.of("Asia/Seoul")
+        fun millis(month: Int, day: Int, hour: Int) = ZonedDateTime.of(2026, month, day, hour, 0, 0, 0, seoul).toInstant().toEpochMilli()
+        val now = millis(11, 6, 15) // Friday
+        assertEquals("내일 토요일", TimeText.dayLine(millis(11, 7, 7), now, seoul))
+        assertEquals("오늘 금요일", TimeText.dayLine(millis(11, 6, 23), now, seoul))
+        assertEquals("11월 10일 화요일", TimeText.dayLine(millis(11, 10, 6), now, seoul))
+        assertEquals("11월 7일 토요일", TimeText.date(millis(11, 7, 7), seoul))
+    }
+
+    @Test
+    fun secondsWithOneDecimalOnlyWhenNeeded() {
+        assertEquals("1.2초", TimeText.seconds(1_200))
+        assertEquals("0초", TimeText.seconds(0))
+        assertEquals("2초", TimeText.seconds(2_000))
+        assertEquals("0.4초", TimeText.seconds(400))
     }
 }

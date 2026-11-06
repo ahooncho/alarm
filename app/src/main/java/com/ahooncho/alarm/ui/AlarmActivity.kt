@@ -27,6 +27,7 @@ class AlarmActivity : ComponentActivity() {
         enableEdgeToEdge()
         val is24Hour = DateFormat.is24HourFormat(this)
         setContent {
+            // Always dark: the room is dark and someone else is asleep in it.
             AlarmTheme(dark = true) {
                 val ringing by RingingState.current.collectAsStateWithLifecycle()
                 val state = ringing
@@ -41,11 +42,9 @@ class AlarmActivity : ComponentActivity() {
                         }
                     }
                     RingingScreen(
+                        state = state,
                         nowMillis = nowMillis,
                         is24Hour = is24Hour,
-                        isTest = state.isTest,
-                        earphone = state.earphone,
-                        outputKnown = state.outputKnown,
                         onSnooze = { AlarmService.snooze(this@AlarmActivity) },
                         onDismiss = { AlarmService.dismiss(this@AlarmActivity) },
                     )

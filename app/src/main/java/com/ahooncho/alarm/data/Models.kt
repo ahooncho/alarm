@@ -24,6 +24,8 @@ data class Settings(
     val snoozeMinutes: Int = 5,
     /** Ringing stops by itself after this long without snooze or dismiss. */
     val autoStopMinutes: Int = 15,
+    /** How long the dismiss button must be held on the ringing screen; 0 dismisses on a tap. */
+    val holdToDismissMillis: Int = 1_200,
 )
 
 @Serializable

@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
 import android.text.format.DateFormat
 import android.util.Log
 import com.ahooncho.alarm.alarmApp
@@ -54,7 +55,18 @@ class AlarmService : Service() {
     private fun onRing(id: Int, triggerAt: Long) {
         val first = ringingIds.isEmpty()
         if (first) {
-            RingingState.set(RingingState.Ringing(triggerAt = triggerAt, isTest = id == TEST_ALARM_ID))
+            val settings = repository.data.value.settings
+            RingingState.set(
+                RingingState.Ringing(
+                    triggerAt = triggerAt,
+                    isTest = id == TEST_ALARM_ID,
+                    repeatText = if (id == TEST_ALARM_ID) "테스트" else repository.alarm(id)?.let { TimeText.days(it.days) }.orEmpty(),
+                    snoozeMinutes = settings.snoozeMinutes,
+                    holdToDismissMillis = settings.holdToDismissMillis,
+                    volumePercent = settings.volumePercent,
+                    rampMillis = settings.rampSeconds * 1_000L,
+                ),
+            )
         }
         // Required promptly after startForegroundService, even if this alarm turns out to be stale.
         startForeground(Notifications.ID_RINGING, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
@@ -105,7 +117,13 @@ class AlarmService : Service() {
 
     private fun onOutputChanged(earphone: String?) {
         if (earphone == null) vibrator?.start() else vibrator?.stop()
-        RingingState.update { it.copy(earphone = earphone, outputKnown = true) }
+        RingingState.update {
+            it.copy(
+                earphone = earphone,
+                outputKnown = true,
+                soundingSince = if (earphone == null) null else it.soundingSince ?: SystemClock.elapsedRealtime(),
+            )
+        }
         getSystemService(NotificationManager::class.java).notify(Notifications.ID_RINGING, buildNotification())
     }
 
@@ -168,7 +186,7 @@ class AlarmService : Service() {
         val text = when {
             state == null || !state.outputKnown -> "이어폰 확인 중"
             state.earphone != null -> "${state.earphone}에서 울리는 중"
-            else -> "이어폰 없음 · 진동만"
+            else -> "이어폰 연결 안 됨, 진동만 울려요"
         }
         return Notifications.ringing(this, title, text)
     }

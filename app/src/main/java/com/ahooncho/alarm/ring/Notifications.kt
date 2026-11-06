@@ -52,8 +52,8 @@ object Notifications {
             .setFullScreenIntent(screen, true)
             .setContentIntent(screen)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(Notification.Action.Builder(icon, "스누즈", AlarmService.snoozeIntent(context)).build())
-            .addAction(Notification.Action.Builder(icon, "끄기", AlarmService.dismissIntent(context)).build())
+            .addAction(Notification.Action.Builder(icon, "다시 알림", AlarmService.snoozeIntent(context)).build())
+            .addAction(Notification.Action.Builder(icon, "해제", AlarmService.dismissIntent(context)).build())
             .build()
     }
 
